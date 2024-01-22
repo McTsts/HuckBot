@@ -22,9 +22,16 @@ module.exports = function() {
 		// Connection connection
 		connection.connect(err => {
 			if(err) console.log(err);
-			else getStats();
 		});
 	}
+    
+    /* bad sql */
+    this.quicksql = function(q) {
+        sql(q, () => {}, (err) => { console.log(err); });
+    }
+    this.quicksqlquery = function(q, rC) {
+        sql(q, rC, (err) => { console.log(err); });
+    }
 
 	/* Does a sql query and calls one callback with result on success and logs an error and calls another callback on failure */
 	this.sql = function(q, rC, eC) {

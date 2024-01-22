@@ -1,5 +1,6 @@
 {
 	"token": "TOKEN",
+    "guild": "GUILD ID",
 	"db": {
 		"host": "localhost",
 		"user": "USER",
