@@ -11,7 +11,7 @@ var participant = null;
 var gm = null;
 var logc = null;
 
-const maxScav = 100;
+const maxScav = 5;
 
 /* Setup */
 client.on("ready", async () => {
@@ -284,7 +284,7 @@ client.on('interactionCreate', async interaction => {
                             });
                         });
                         log(`<@${interaction.member.id}> gave ${materialCache[+m_id]} to <@${id}>.`);
-                        sec.createDM().then(d => d.send(`You got a ${materialCache[+m_id]} from <@${id}>!`));
+                        sec.createDM().then(d => d.send(`You got a ${materialCache[+m_id]} from <@${interaction.member.id}>!`));
                     } else {
                         interaction.editReply({ content: "You do not have this material.", fetchReply: true, ephemeral: true });
                     }
@@ -380,9 +380,10 @@ client.on('interactionCreate', async interaction => {
                         let inputs = result[0].input.split(",");
                         let craftable = true;
                         
+                        inv = "," + inv + ",";
                         for(let inp in inputs) {
                             if(inv.indexOf(inputs[inp]) >= 0) {
-                                inv = inv.replace(inputs[inp], "");
+                                inv = inv.replace("," + inputs[inp] + ",", ",");
                             } else {
                                 craftable = false;
                                 break;
@@ -464,6 +465,8 @@ client.on('interactionCreate', async interaction => {
                                     console.log("nope", chance, rch);
                                 }
                             }
+                            
+                            if(inv[0] == ",") inv = inv.substr(1);
                             
                             quicksql("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(interaction.member.id));
                             if(scavengeRes.length) interaction.editReply({ content: "Scavenged at `" + result[0].name + "`! Got " + scavengeRes.map(el => materialCache[+el[0]] + " x" + el[1]).join(", ") + "!", fetchReply: true, ephemeral: true });
