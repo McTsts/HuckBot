@@ -73,7 +73,7 @@ client.on('interactionCreate', async interaction => {
         case "help":
             if(isGameMaster(interaction.member)) {
                 // Send help mesgae
-                interaction.reply({ content: "**Commands**\n*everyone*\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player\n\n*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/invsee - list players + their inventory\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_skill <value> <player id>\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs" });
+                interaction.reply({ content: "**Commands**\n*everyone*\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player\n\n*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/full_reset - DANGER!! Deletes all bot data\n/invsee - list players + their inventory\n/inveval - evaluates item counts\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_skill <value> <player id>\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs" });
             } else {
                 // Send help mesgae
                 interaction.reply({ content: "**Commands**\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player" });
@@ -108,6 +108,18 @@ client.on('interactionCreate', async interaction => {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
             }
         break;
+        case "full_reset":
+            if(isGameMaster(interaction.member)) {
+                quicksql("DELETE FROM players");
+                quicksql("DELETE FROM materials");
+                quicksql("DELETE FROM recipes");
+                quicksql("DELETE FROM areas");
+                interaction.reply({ content: "Deleted ALL data. Please manually remove the 'Participant' role from all players.", fetchReply: true });
+                log(`<@${interaction.member.id}> fully reset.`);
+            } else {
+                interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
+            }
+        break;
         case "list":
             interaction.reply({ content: "**Players**", fetchReply: true, ephemeral: true }).then(m => {
                 quicksqlquery("SELECT * FROM players", result => {
@@ -119,14 +131,65 @@ client.on('interactionCreate', async interaction => {
             if(isGameMaster(interaction.member)) {
                 interaction.reply({ content: "**Players (INV)**", fetchReply: true, ephemeral: true }).then(m => {
                     quicksqlquery("SELECT * FROM players", result => {
-                        interaction.editReply({ content: "**Players (INV)**\n" + result.map(el => {
+                        let invs = result.map(el => {
                             let inv = el.inventory.split(",").map(el2 => el2);
                             const counts = {};
                             for (const num of inv) {
                               counts[num] = counts[num] ? counts[num] + 1 : 1;
                             }
-                            return `<@${el.id}>: [${el.scavenged}]; ${Object.keys(counts).map(key => "(" + +key + ") " + materialCache[+key].split(" ").pop() + " x" + counts[key]).join(", ")}`
-                        }).join("\n"), fetchReply: true, ephemeral: true })
+                            return `<@${el.id}>: [${el.scavenged}]; ${Object.keys(counts).map(key => "(" + +key + ") " + (materialCache[+key] ? materialCache[+key].split(" ").pop() : key) + " x" + counts[key]).join(", ")}`
+                        });
+                        // initial message
+                        let curinvs = [];
+                        let curl = 0;
+                        while(curl < 2000 && invs[0]) {
+                            if(curl + invs[0].length < 2000) {
+                                curinvs.push(invs[0]);
+                                curl += invs[0].length;
+                                invs.shift();
+                            } else {
+                                break;
+                            }
+                        }
+                        interaction.editReply({ content: "**Players (INV)**\n" + curinvs.join("\n"), fetchReply: true, ephemeral: true });
+                        // further messages
+                        while(invs[0]) {
+                            curinvs = [];
+                            curl = 0;
+                            while(curl < 2000 && invs[0]) {
+                                if(curl + invs[0].length < 2000) {
+                                    curinvs.push(invs[0]);
+                                    curl += invs[0].length;
+                                    invs.shift();
+                                } else {
+                                    interaction.followUp({ content: curinvs.join("\n"), fetchReply: true, ephemeral: true });
+                                    curl = 0;
+                                    curinvs = [];
+                                    break;
+                                }
+                            }
+                        }
+                        if(curinvs[0]) interaction.followUp({ content: curinvs.join("\n"), fetchReply: true, ephemeral: true });
+                        
+                    });
+                });
+            } else {
+                interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
+            }
+        break;
+        case "inveval":
+            if(isGameMaster(interaction.member)) {
+                interaction.reply({ content: "**Item Evaluation**", fetchReply: true, ephemeral: true }).then(m => {
+                    quicksqlquery("SELECT * FROM players", result => {
+                        let all = result.map(el => el.inventory).join(",").split(",").map(el => el);
+                        const counts = {};
+                        for (const num of all) {
+                          counts[num] = counts[num] ? counts[num] + 1 : 1;
+                        }
+                        
+                        let invtxt = Object.keys(counts).sort((a,b) => counts[b] - counts[a]).map(key => "(" + +key + ") " + materialCache[+key] + " x" + counts[key]).join("\n");
+                        
+                        interaction.editReply({ content: "**Item Evaluation**\n" + invtxt, fetchReply: true, ephemeral: true });
                     });
                 });
             } else {
@@ -237,11 +300,13 @@ client.on('interactionCreate', async interaction => {
         case "list_recipes":
             interaction.reply({ content: "**Recipes**", fetchReply: true, ephemeral: true }).then(m => {
                 quicksqlquery("SELECT * FROM recipes", result => {
-                    let res = result.map(el => `\`${el.r_id}\`: ${el.input.split(",").map(el => materialCache[+el]).join(", ")} => ${materialCache[+el.output]}`);
+                    let res = result.map(el => `\`${el.r_id}\`: ${el.input.split(",").map(el => materialCache[+el]).join(", ")} => ${el.output.split(",").map(el2 => materialCache[+el2]).join(", ")}`);
                     let resavgl = res.map(el => el.length).reduce((a,b) => a+b) / res.length;
                     res2 = res.splice(Math.floor(1750 / resavgl));
+                    res3 = res2.splice(Math.floor(1750 / resavgl));
                     interaction.editReply({ content: "**Recipes**\n" + res.join("\n"), fetchReply: true, ephemeral: true });
                     if(res2.length) interaction.followUp({ content: res2.join("\n"), fetchReply: true, ephemeral: true });
+                    if(res3.length) interaction.followUp({ content: res3.join("\n"), fetchReply: true, ephemeral: true });
                 });
             });
         break;
@@ -265,10 +330,11 @@ client.on('interactionCreate', async interaction => {
                     let success = null;
                     let newinv = null;
                     quicksqlquery("SELECT inventory FROM players WHERE id=" + connection.escape(interaction.member.id), result => {
-                        let inv = result[0].inventory.replace(m_id,"").split(",").filter(el => el).join(",");
+                        let inv = ("," + result[0].inventory + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
                         if(inv != result[0].inventory) success = true;
                         else success = false;
                         newinv = inv;
+                        if(newinv == "0") newinv = "";
                         quicksql("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(interaction.member.id));
                     });
                     
@@ -305,7 +371,7 @@ client.on('interactionCreate', async interaction => {
                         quicksqlquery("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(id), result2 => {
                             interaction.editReply({ content: "Added! New Inventory: " + inv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
                         });
-                        log(`<@${interaction.member.id}> inventory edit: + ${materialCache[+m_id]}`);
+                        log(`<@${interaction.member.id}> inventory edit for <@${id}>: + ${materialCache[+m_id]}`);
                     });
                 });
             } else {
@@ -318,11 +384,11 @@ client.on('interactionCreate', async interaction => {
                     let id = interaction.options.get('player')?.value ?? null;
                     let m_id = interaction.options.get('m_id')?.value ?? null;
                     quicksqlquery("SELECT inventory FROM players WHERE id=" + connection.escape(id), result => {
-                        let inv = result[0].inventory.replace(m_id,"").split(",").filter(el => el).join(",");
+                        let inv = ("," + result[0].inventory + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
                         quicksqlquery("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(id), result2 => {
                             interaction.editReply({ content: "Removed! New Inventory: " + inv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
                         });
-                        log(`<@${interaction.member.id}> inventory edit: - ${materialCache[+m_id]}`);
+                        log(`<@${interaction.member.id}> inventory edit for <@${id}>: - ${materialCache[+m_id]}`);
                     });
                 });
             } else {
@@ -394,8 +460,8 @@ client.on('interactionCreate', async interaction => {
                             inv = inv ? inv + "," + result[0].output : result[0].input;       
                             inv = inv.split(",").filter(el => el).join(",");
                             quicksqlquery("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(interaction.member.id), result2 => {
-                                interaction.editReply({ content: "Crafted a " + materialCache[+result[0].output] + "! New Inventory: " + inv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
-                                log(`<@${interaction.member.id}> crafted a ${materialCache[+result[0].output]}.`);
+                                interaction.editReply({ content: "Crafted a " + result[0].output.split(",").map(el2 => materialCache[+el2]).join(", ") + "! New Inventory: " + inv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
+                                log(`<@${interaction.member.id}> crafted a ${result[0].output.split(",").map(el2 => materialCache[+el2]).join(", ")}.`);
                             });
                         } else {
                             interaction.editReply({ content: "Cannot craft! Insufficient materials.", fetchReply: true, ephemeral: true });
@@ -519,12 +585,20 @@ function registerCommands() {
         description: 'Lists all signed up players and their inventory data'
     });
     client.application?.commands.create({
+        name: 'inveval',
+        description: 'Lists all item counts'
+    });
+    client.application?.commands.create({
         name: 'inventory',
         description: 'Shows your current inventory.'
     });
     client.application?.commands.create({
         name: 'reset',
         description: 'Resets the game'
+    });
+    client.application?.commands.create({
+        name: 'full_reset',
+        description: 'Deletes ALL bot data. DANGER!!'
     });
     client.application?.commands.create({
         name: 'register_material',
