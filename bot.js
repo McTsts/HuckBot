@@ -73,7 +73,7 @@ client.on('interactionCreate', async interaction => {
         case "help":
             if(isGameMaster(interaction.member)) {
                 // Send help mesgae
-                interaction.reply({ content: "**Commands**\n*everyone*\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player\n\n*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/full_reset - DANGER!! Deletes all bot data\n/invsee - list players + their inventory\n/inveval - evaluates item counts\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_skill <value> <player id>\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs" });
+                interaction.reply({ content: "**Commands**\n*everyone*\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player\n\n*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/full_reset - DANGER!! Deletes all bot data\n/invsee - list players + their inventory\n/inveval - evaluates item counts\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_scavenge_skill <value> <player id> - sets scavenge skill\n/set_crafting_skill <value> <player id> - sets crafting skill\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs\n/modify_actions - grant or revoke scavenge actions" });
             } else {
                 // Send help mesgae
                 interaction.reply({ content: "**Commands**\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player" });
@@ -235,7 +235,7 @@ client.on('interactionCreate', async interaction => {
         break;
         case "list_materials":
             interaction.reply({ content: "**Materials**", fetchReply: true, ephemeral: true }).then(m => {
-                quicksqlquery("SELECT * FROM materials", result => {
+                quicksqlquery("SELECT * FROM materials ORDER BY m_id ASC", result => {
                     interaction.editReply({ content: "**Materials**\n" + result.map(el => `\`${el.m_id}\`: ${applyEmojis(el.name)}`).join("\n"), fetchReply: true, ephemeral: true })
                 });
             });
@@ -265,13 +265,13 @@ client.on('interactionCreate', async interaction => {
         case "list_areas":
             if(isGameMaster(interaction.member)) {
                 interaction.reply({ content: "**Areas (GM View)**", fetchReply: true, ephemeral: true }).then(m => {
-                    quicksqlquery("SELECT * FROM areas", result => {
+                    quicksqlquery("SELECT * FROM areas ORDER BY a_id ASC", result => {
                         interaction.editReply({ content: "**Areas (GM View)**\n" + result.map(el => `\`${el.a_id}\`: ${el.name} => \`${el.scavenge}\`${el.hidden=="1"?" (Hidden!)":""}`).join("\n"), fetchReply: true, ephemeral: true })
                     });
                 });
             } else {
                 interaction.reply({ content: "**Areas**", fetchReply: true, ephemeral: true }).then(m => {
-                    quicksqlquery("SELECT * FROM areas WHERE hidden=0", result => {
+                    quicksqlquery("SELECT * FROM areas WHERE hidden=0 ORDER BY a_id ASC", result => {
                         interaction.editReply({ content: "**Areas**\n" + result.map(el => `\`${el.a_id}\`: ${el.name}`).join("\n"), fetchReply: true, ephemeral: true })
                     });
                 });
@@ -282,7 +282,8 @@ client.on('interactionCreate', async interaction => {
                 let r_id = interaction.options.get('r_id')?.value ?? null;
                 let input = interaction.options.get('input')?.value ?? null;
                 let output = interaction.options.get('output')?.value ?? null;
-                quicksql("INSERT INTO recipes (r_id, input, output) VALUES (" + connection.escape(r_id) + "," + connection.escape(input) +"," + connection.escape(output) + ")");
+                let skill_req = interaction.options.get('skill_req')?.value ?? "0";
+                quicksql("INSERT INTO recipes (r_id, input, output, skill_req) VALUES (" + connection.escape(r_id) + "," + connection.escape(input) +"," + connection.escape(output) + "," + connection.escape(skill_req) + ")");
                 interaction.reply({ content: "Registered recipe.", fetchReply: true, ephemeral: true })
             } else {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
@@ -291,7 +292,7 @@ client.on('interactionCreate', async interaction => {
         case "delete_recipe":
             if(isGameMaster(interaction.member)) {
                 let r_id = interaction.options.get('r_id')?.value ?? null;
-                quicksql("DELETE FROM recipes WHERE r_id=" + connection.escape(m_id));
+                quicksql("DELETE FROM recipes WHERE r_id=" + connection.escape(r_id));
                 interaction.reply({ content: "Deleted recipe.", fetchReply: true, ephemeral: true })
             } else {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
@@ -299,8 +300,8 @@ client.on('interactionCreate', async interaction => {
         break;
         case "list_recipes":
             interaction.reply({ content: "**Recipes**", fetchReply: true, ephemeral: true }).then(m => {
-                quicksqlquery("SELECT * FROM recipes", result => {
-                    let res = result.map(el => `\`${el.r_id}\`: ${el.input.split(",").map(el => materialCache[+el]).join(", ")} => ${el.output.split(",").map(el2 => materialCache[+el2]).join(", ")}`);
+                quicksqlquery("SELECT * FROM recipes ORDER BY r_id ASC", result => {
+                    let res = result.map(el => `\`${el.r_id}\`: ${el.output.split(",").map(el2 => materialCache[+el2]).join(", ")} <= ${el.input.split(",").map(el => materialCache[+el]).join(", ")}`);
                     let resavgl = res.map(el => el.length).reduce((a,b) => a+b) / res.length;
                     res2 = res.splice(Math.floor(1750 / resavgl));
                     res3 = res2.splice(Math.floor(1750 / resavgl));
@@ -419,14 +420,44 @@ client.on('interactionCreate', async interaction => {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
             }
         break;
-        case "set_skill":
+        case "set_scavenge_skill":
             if(isGameMaster(interaction.member)) {
-                interaction.reply({ content: "Setting skill...", fetchReply: true, ephemeral: true }).then(m => {
+                interaction.reply({ content: "Setting scavenge skill...", fetchReply: true, ephemeral: true }).then(m => {
                     let id = interaction.options.get('player')?.value ?? null;
                     let skill = interaction.options.get('skill')?.value ?? null;
                     quicksqlquery("UPDATE players SET skill=" + connection.escape(skill) + " WHERE id=" + connection.escape(id), result2 => {
-                        interaction.editReply({ content: "Set skill.", fetchReply: true, ephemeral: true });
-                        log(`<@${interaction.member.id}> set <@${id}>'s skill to ${skill}.`);
+                        interaction.editReply({ content: "Set scavenge skill.", fetchReply: true, ephemeral: true });
+                        log(`<@${interaction.member.id}> set <@${id}>'s scavenge skill to ${skill}.`);
+                    });
+                });
+            } else {
+                interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
+            }
+        break;
+        case "set_crafting_skill":
+            if(isGameMaster(interaction.member)) {
+                interaction.reply({ content: "Setting crafting skill...", fetchReply: true, ephemeral: true }).then(m => {
+                    let id = interaction.options.get('player')?.value ?? null;
+                    let skill = interaction.options.get('skill')?.value ?? null;
+                    quicksqlquery("UPDATE players SET skill2=" + connection.escape(skill) + " WHERE id=" + connection.escape(id), result2 => {
+                        interaction.editReply({ content: "Set crafting skill.", fetchReply: true, ephemeral: true });
+                        log(`<@${interaction.member.id}> set <@${id}>'s crafting skill to ${skill}.`);
+                    });
+                });
+            } else {
+                interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
+            }
+        break;
+        case "modify_actions":
+            if(isGameMaster(interaction.member)) {
+                interaction.reply({ content: "Modifying remaining actions...", fetchReply: true, ephemeral: true }).then(m => {
+                    let id = interaction.options.get('player')?.value ?? null;
+                    let actions = interaction.options.get('actions')?.value ?? null;
+                    if(+actions >= 0) actions = "-" + (+actions);
+                    else actions = "+" + (+actions)*-1;
+                    quicksqlquery("UPDATE players SET scavenged=scavenged" + actions + " WHERE id=" + connection.escape(id), result2 => {
+                        interaction.editReply({ content: "Modified remaining actions.", fetchReply: true, ephemeral: true });
+                        log(`<@${interaction.member.id}> modified <@${id}>'s used actions by ${actions}.`);
                     });
                 });
             } else {
@@ -436,11 +467,12 @@ client.on('interactionCreate', async interaction => {
         case "craft":
             interaction.reply({ content: "Crafting...", fetchReply: true, ephemeral: true }).then(m => {
                 let r_id = interaction.options.get('r_id')?.value ?? null;
-                quicksqlquery("SELECT inventory FROM players WHERE id=" + connection.escape(interaction.member.id), result => {
+                quicksqlquery("SELECT inventory,skill2 FROM players WHERE id=" + connection.escape(interaction.member.id), result => {
                     let inv = result[0].inventory ?? "";
-                    quicksqlquery("SELECT * FROM recipes WHERE r_id=" + connection.escape(r_id), result => {
+                    let cskill = result[0].skill2;
+                    quicksqlquery("SELECT * FROM recipes WHERE r_id=" + connection.escape(r_id) + " AND skill_req<=" + connection.escape(cskill), result => {
                         if(!result[0]) {
-                            interaction.editReply({ content: "Cannot craft! Invalid recipe.", fetchReply: true, ephemeral: true });
+                            interaction.editReply({ content: "Cannot craft! Invalid recipe or insufficient crafting level.", fetchReply: true, ephemeral: true });
                             return;
                         }
                         let inputs = result[0].input.split(",");
@@ -695,6 +727,12 @@ function registerCommands() {
                 name: "output",
                 description: "The recipe outputs (comma separated)",
                 required: true
+            },
+            {
+                type: ApplicationCommandOptionType.String,
+                name: "skill_req",
+                description: "The required crafting skill level. (Optional, defaults to 0)",
+                required: false
             }
         ]
     });
@@ -793,6 +831,24 @@ function registerCommands() {
         ]
     });
     client.application?.commands.create({
+        name: 'modify_actions',
+        description: 'Modifies the amount of actions a player has left.',
+        options: [
+            {
+                type: ApplicationCommandOptionType.User,
+                name: "player",
+                description: "The targeted player.",
+                required: true
+            },
+            {
+                type: ApplicationCommandOptionType.String,
+                name: "actions",
+                description: "The amount of actions to add.",
+                required: true
+            }
+        ]
+    });
+    client.application?.commands.create({
         name: 'lock',
         description: 'Locks scavenging'
     });
@@ -801,8 +857,26 @@ function registerCommands() {
         description: 'Unlocks scavenging'
     });
     client.application?.commands.create({
-        name: 'set_skill',
+        name: 'set_scavenge_skill',
         description: 'Sets a players scavenge skill.',
+        options: [
+            {
+                type: ApplicationCommandOptionType.String,
+                name: "skill",
+                description: "The skill value.",
+                required: true
+            },
+            {
+                type: ApplicationCommandOptionType.User,
+                name: "player",
+                description: "The targeted player.",
+                required: true
+            }
+        ]
+    });
+    client.application?.commands.create({
+        name: 'set_crafting_skill',
+        description: 'Sets a players crafting skill.',
         options: [
             {
                 type: ApplicationCommandOptionType.String,
