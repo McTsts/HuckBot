@@ -5,6 +5,7 @@ config = require("./config.json");
 
 
 require("./sql.js")();
+require("./whispers.js")();
 
 var mainguild = null;
 var participant = null;
@@ -55,6 +56,19 @@ function cacheMaterials() {
     });
 }
 
+client.on("messageCreate", async message => {
+    try {
+        await message.fetch();
+    } catch (err) {
+        console.log("UNKNOWN MESSAGE");
+        console.log(err);
+        return;
+    }
+	/* Connected Channels */ // Copies messages from one channel to another and applies disguises if one is set
+	connectionExecute(message);
+    
+});
+
 
 /* New Slash Command */
 client.on('interactionCreate', async interaction => {
@@ -73,7 +87,8 @@ client.on('interactionCreate', async interaction => {
         case "help":
             if(isGameMaster(interaction.member)) {
                 // Send help mesgae
-                interaction.reply({ content: "**Commands**\n*everyone*\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player\n\n*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/full_reset - DANGER!! Deletes all bot data\n/invsee - list players + their inventory\n/inveval - evaluates item counts\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_scavenge_skill <value> <player id> - sets scavenge skill\n/set_crafting_skill <value> <player id> - sets crafting skill\n/set_scavenge_limit - sets maximum amount of scavenges\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs\n/modify_actions - grant or revoke scavenge actions" });
+                await interaction.reply({ content: "**Commands**\n*everyone*\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player" });
+                interaction.followUp({ content: "*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/full_reset - DANGER!! Deletes all bot data\n/invsee - list players + their inventory\n/inveval - evaluates item counts\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_scavenge_skill <value> <player id> - sets scavenge skill\n/set_crafting_skill <value> <player id> - sets crafting skill\n/set_scavenge_limit - sets maximum amount of scavenges\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs\n/modify_actions - grant or revoke scavenge actions\n/connection_add - adds a whisper connection\n/connection_remove - removes whisper connections from channel\n/connection_reset - deletes all whispers" });
             } else {
                 // Send help mesgae
                 interaction.reply({ content: "**Commands**\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player" });
@@ -590,6 +605,21 @@ client.on('interactionCreate', async interaction => {
                 });
             });
         break;
+        case "connection_add":
+            interaction.reply({ content: "Executing command...", fetchReply: true, ephemeral: true });
+            let disguise = interaction.options.get('disguise')?.value ?? "";
+            if(disguise.length < 2) disguise = "";
+            let connection2 = interaction.options.get('connection')?.value ?? null;
+            cmdConnectionAdd(interaction.channel, ["", connection2, disguise]);
+        break;
+        case "connection_remove":
+            interaction.reply({ content: "Executing command...", fetchReply: true, ephemeral: true });
+            cmdConnectionRemove(interaction.channel);
+        break;
+        case "connection_reset":
+            interaction.reply({ content: "Executing command...", fetchReply: true, ephemeral: true });
+            cmdConnectionReset(interaction.channel);
+        break;
     }
 })
 
@@ -923,6 +953,31 @@ function registerCommands() {
                 required: true
             }
         ]
+    });
+    client.application?.commands.create({
+        name: 'connection_add',
+        description: 'Adds a connection to the current channel.',
+        options: [
+            {
+                type: ApplicationCommandOptionType.String,
+                name: "connection",
+                description: "The name of the connection.",
+                required: true
+            },
+            {
+                type: ApplicationCommandOptionType.String,
+                name: "disguise",
+                description: "The name of the disguise."
+            }
+        ]
+    });
+    client.application?.commands.create({
+        name: 'connection_remove',
+        description: 'Removes all connections from the current channel.'
+    });
+    client.application?.commands.create({
+        name: 'connection_reset',
+        description: 'Removes ALL connections from the ENTIRE server.'
     });
 }
 
