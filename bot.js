@@ -331,6 +331,8 @@ client.on('interactionCreate', async interaction => {
                 interaction.reply({ content: "Giving...", fetchReply: true, ephemeral: true }).then(async m => {
                     let id = interaction.options.get('player')?.value ?? null;
                     let m_id = interaction.options.get('m_id')?.value ?? null;
+                    let count = + (interaction.options.get('count')?.value ?? 1);
+                    let m_idMulti = new Array(count).fill(m_id).join(',');
                     
                     if(!materialCache[+m_id]) {
                         interaction.editReply({ content: "This material does not exist.", fetchReply: true, ephemeral: true });
@@ -346,10 +348,17 @@ client.on('interactionCreate', async interaction => {
                     let success = null;
                     let newinv = null;
                     quicksqlquery("SELECT inventory FROM players WHERE id=" + connection.escape(interaction.member.id), result => {
-                        let inv = ("," + result[0].inventory + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
-                        if(inv != result[0].inventory) success = true;
-                        else success = false;
+                        let inv = result[0].inventory;
+                        for(let i = 0; i < count; i++) {
+                            let invNew = ("," + inv + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
+                            if(invNew === inv) {
+                                success = false;
+                               return;
+                            }
+                            inv = invNew;
+                        }
                         newinv = inv;
+                        success = true;
                         if(newinv == "0") newinv = "";
                         quicksql("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(interaction.member.id));
                     });
@@ -360,13 +369,13 @@ client.on('interactionCreate', async interaction => {
                     
                     if(success) {
                         quicksqlquery("SELECT inventory FROM players WHERE id=" + connection.escape(id), result => {
-                            let inv = result[0].inventory ? result[0].inventory + "," + m_id : m_id;
+                            let inv = result[0].inventory ? result[0].inventory + "," + m_idMulti : m_idMulti;
                             quicksqlquery("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(id), result2 => {
-                                interaction.editReply({ content: "Gave <@" + id + "> a " + materialCache[+m_id] + "! New Inventory: " + newinv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
+                                interaction.editReply({ content: "Gave <@" + id + "> a " + materialCache[+m_id] + " x" + count + "! New Inventory: " + newinv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
                             });
                         });
-                        log(`<@${interaction.member.id}> gave ${materialCache[+m_id]} to <@${id}>.`);
-                        sec.createDM().then(d => d.send(`You got a ${materialCache[+m_id]} from <@${interaction.member.id}>!`));
+                        log(`<@${interaction.member.id}> gave ${materialCache[+m_id]} to <@${id}> x${count}.`);
+                        sec.createDM().then(d => d.send(`You got a ${materialCache[+m_id]} x${count} from <@${interaction.member.id}>!`));
                     } else {
                         interaction.editReply({ content: "You do not have this material.", fetchReply: true, ephemeral: true });
                     }
@@ -382,12 +391,14 @@ client.on('interactionCreate', async interaction => {
                 interaction.reply({ content: "Adding...", fetchReply: true, ephemeral: true }).then(m => {
                     let id = interaction.options.get('player')?.value ?? null;
                     let m_id = interaction.options.get('m_id')?.value ?? null;
+                    let count = + (interaction.options.get('count')?.value ?? 1);
+                    let m_idMulti = new Array(count).fill(m_id).join(',');
                     quicksqlquery("SELECT inventory FROM players WHERE id=" + connection.escape(id), result => {
-                        let inv = result[0].inventory ? result[0].inventory + "," + m_id : m_id;
+                        let inv = result[0].inventory ? result[0].inventory + "," + m_idMulti : m_idMulti;
                         quicksqlquery("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(id), result2 => {
                             interaction.editReply({ content: "Added! New Inventory: " + inv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
                         });
-                        log(`<@${interaction.member.id}> inventory edit for <@${id}>: + ${materialCache[+m_id]}`);
+                        log(`<@${interaction.member.id}> inventory edit for <@${id}>: + ${materialCache[+m_id]} x${count}`);
                     });
                 });
             } else {
@@ -399,12 +410,16 @@ client.on('interactionCreate', async interaction => {
                 interaction.reply({ content: "Removing...", fetchReply: true, ephemeral: true }).then(m => {
                     let id = interaction.options.get('player')?.value ?? null;
                     let m_id = interaction.options.get('m_id')?.value ?? null;
+                    let count = + (interaction.options.get('count')?.value ?? 1);
                     quicksqlquery("SELECT inventory FROM players WHERE id=" + connection.escape(id), result => {
-                        let inv = ("," + result[0].inventory + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
+                        let inv = result[0].inventory;
+                        for(let i = 0; i < count; i++) {
+                            inv = ("," + inv + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
+                        }
                         quicksqlquery("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(id), result2 => {
                             interaction.editReply({ content: "Removed! New Inventory: " + inv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
                         });
-                        log(`<@${interaction.member.id}> inventory edit for <@${id}>: - ${materialCache[+m_id]}`);
+                        log(`<@${interaction.member.id}> inventory edit for <@${id}>: - ${materialCache[+m_id]} x${count}`);
                     });
                 });
             } else {
@@ -835,6 +850,11 @@ function registerCommands() {
                 name: "player",
                 description: "The targeted player.",
                 required: true
+            },
+            {
+                type: ApplicationCommandOptionType.Integer,
+                name: "count",
+                description: "The amount of materials."
             }
         ]
     });
@@ -853,6 +873,11 @@ function registerCommands() {
                 name: "player",
                 description: "The targeted player.",
                 required: true
+            },
+            {
+                type: ApplicationCommandOptionType.Integer,
+                name: "count",
+                description: "The amount of materials."
             }
         ]
     });
@@ -871,6 +896,11 @@ function registerCommands() {
                 name: "player",
                 description: "The targeted player.",
                 required: true
+            },
+            {
+                type: ApplicationCommandOptionType.Integer,
+                name: "count",
+                description: "The amount of materials."
             }
         ]
     });
