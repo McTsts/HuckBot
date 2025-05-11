@@ -88,7 +88,7 @@ client.on('interactionCreate', async interaction => {
             if(isGameMaster(interaction.member)) {
                 // Send help mesgae
                 await interaction.reply({ content: "**Commands**\n*everyone*\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player" });
-                interaction.followUp({ content: "*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/full_reset - DANGER!! Deletes all bot data\n/invsee - list players + their inventory\n/inveval - evaluates item counts\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_scavenge_skill <value> <player id> - sets scavenge skill\n/set_crafting_skill <value> <player id> - sets crafting skill\n/set_scavenge_limit - sets maximum amount of scavenges\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs\n/modify_actions - grant or revoke scavenge actions\n/connection_add - adds a whisper connection\n/connection_remove - removes whisper connections from channel\n/connection_reset - deletes all whispers" });
+                interaction.followUp({ content: "*gm*\n/register_material <material id> <name> - registers a new material with a numeric id and a name\n/delete_material <material id> - deletes a material by material id\n/register_recipe <recipe id> <in list> <output> - defines a crafting recipe with a comma separated list of input material ids and an output material id\n/delete_recipe <recipe id> - deletes a recipe by recipe id\n/reset - deletes all player data\n/full_reset - DANGER!! Deletes all bot data\n/invsee - list players + their inventory\n/inveval - evaluates item counts\n/invadd <player id> <material id> - adds material to an inventory\n/invrem <player id> <material id> - removes material to an inventory\n/lock - locks scavenging for everyone\n/unlock - unlocks scavenging for everyone\n/set_scavenge_skill <value> <player id> - sets scavenge skill\n/set_crafting_skill <value> <player id> - sets crafting skill\n/set_scavenge_limit - sets maximum amount of scavenges\n/set_inventory_limit - sets maximum amount of items allowed in inventory\n/register_area <area id> <scavange output> - registers an area with a certain scavenge output defined in a format like `0.1:1,0.2:2` which would mean a 10% chance of getting material 1, and a 20% chance of getting material 2. You can append `x1`/`x2`/etc and `x1-2`/`x3-7`/etc after a material id to specify a randomized count.\n/delete_area <area id> - deletes an area\n/list_areas - lists all areas and their scavenge outputs\n/modify_actions - grant or revoke scavenge actions\n/connection_add - adds a whisper connection\n/connection_remove - removes whisper connections from channel\n/connection_reset - deletes all whispers" });
             } else {
                 // Send help mesgae
                 interaction.reply({ content: "**Commands**\n/signup /signout - adds/removes a player to the bot's stored list of players\n/list - list players\n/list_materials - displays all materials\n/help - see help for commands\n/ping - check if the bot works\n/inventory - see your own inventory\n/list_recipes - lists all recipes and their ids\n/craft <recipe id> - crafts a certain recipe\n/list_areas - lists all areas and their ids\n/scavenge <area id> - scavenges a registered area\n/give <material id> <target player> - give a material to another player" });
@@ -492,6 +492,20 @@ client.on('interactionCreate', async interaction => {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
             }
         break;
+        case "set_inventory_limit":
+            if(isGameMaster(interaction.member)) {
+                interaction.reply({ content: "Setting inventory limit...", fetchReply: true, ephemeral: true }).then(m => {
+                    let id = interaction.options.get('player')?.value ?? null;
+                    let skill = interaction.options.get('skill')?.value ?? null;
+                    quicksqlquery("UPDATE players SET skill4=" + connection.escape(skill) + " WHERE id=" + connection.escape(id), result2 => {
+                        interaction.editReply({ content: "Set inventory limit.", fetchReply: true, ephemeral: true });
+                        log(`<@${interaction.member.id}> set <@${id}>'s inventory limit to ${skill}.`);
+                    });
+                });
+            } else {
+                interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
+            }
+        break;
         case "modify_actions":
             if(isGameMaster(interaction.member)) {
                 interaction.reply({ content: "Modifying remaining actions...", fetchReply: true, ephemeral: true }).then(m => {
@@ -558,6 +572,12 @@ client.on('interactionCreate', async interaction => {
                     
                     let skill = result[0].skill;
                     let inv = result[0].inventory;
+                    
+                    if(inv.split(",").length > result[0].skill4) {
+                        interaction.editReply({ content: "You cannot scavenge as your inventory is full.", fetchReply: true, ephemeral: true });
+                        return;
+                    }
+                    
                     quicksqlquery("SELECT * FROM areas WHERE a_id=" + connection.escape(a_id), result => {
                         if(!result[0]) {
                             interaction.editReply({ content: "This area does not exist.", fetchReply: true, ephemeral: true });
@@ -974,6 +994,24 @@ function registerCommands() {
                 type: ApplicationCommandOptionType.String,
                 name: "skill",
                 description: "The scavenge limit.",
+                required: true
+            },
+            {
+                type: ApplicationCommandOptionType.User,
+                name: "player",
+                description: "The targeted player.",
+                required: true
+            }
+        ]
+    });
+    client.application?.commands.create({
+        name: 'set_inventory_limit',
+        description: 'Sets a players inventory limit.',
+        options: [
+            {
+                type: ApplicationCommandOptionType.String,
+                name: "skill",
+                description: "The inventory limit.",
                 required: true
             },
             {
