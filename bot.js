@@ -19,6 +19,7 @@ client.on("ready", async () => {
 	sqlSetup();
     registerCommands();
     cacheMaterials();
+    cacheLocations();
     
     mainguild = await global.client.guilds.fetch(config.guild);
     logc = await mainguild.channels.fetch(config.log_channel);
@@ -53,6 +54,14 @@ function cacheMaterials() {
     materialCache = [];
     quicksqlquery("SELECT * FROM materials", result => {
         result.forEach(el => materialCache[+el.m_id] = applyEmojis(el.name));
+    });
+}
+
+var locationCache = [];
+function cacheLocations() {
+    locationCache = [];
+    quicksqlquery("SELECT * FROM areas", result => {
+        result.forEach(el => locationCache[+el.a_id] = el.name);
     });
 }
 
@@ -96,7 +105,7 @@ client.on('interactionCreate', async interaction => {
         break;
         case "signup":
             if(!isParticipant(interaction.member)) {
-                quicksql("INSERT INTO players (id, scavenged, inventory, skill3) VALUES (" + connection.escape(interaction.member.id) + ",0,''," + maxScav + ")");
+                quicksql("INSERT INTO players (id, name, scavenged, inventory, skill3) VALUES (" + connection.escape(interaction.member.id) + "," + connection.escape(interaction.member.displayName) + ",0,''," + maxScav + ")");
                 interaction.reply({ content: "You signed up!", fetchReply: true });
                 interaction.member.roles.add(participant);
                 log(`<@${interaction.member.id}> signed up.`);
@@ -263,6 +272,7 @@ client.on('interactionCreate', async interaction => {
                 quicksql("INSERT INTO areas (a_id, name, scavenge) VALUES (" + connection.escape(a_id) + "," + connection.escape(name) +"," + connection.escape(scavenge) + ")");
                 interaction.reply({ content: "Registered area.", fetchReply: true, ephemeral: true });
                 cacheMaterials();
+                cacheLocations();
             } else {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
             }
@@ -273,6 +283,7 @@ client.on('interactionCreate', async interaction => {
                 quicksql("DELETE FROM areas WHERE a_id=" + connection.escape(a_id));
                 interaction.reply({ content: "Deleted area.", fetchReply: true, ephemeral: true });
                 cacheMaterials();
+                cacheLocations();
             } else {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
             }
@@ -321,6 +332,12 @@ client.on('interactionCreate', async interaction => {
                     interaction.editReply({ content: "**Recipes**\n" + chunked[0], fetchReply: true, ephemeral: true });
                     for(let i = 1; i < chunked.length; i++) interaction.followUp({ content: chunked[i], fetchReply: true, ephemeral: true });
                 });
+            });
+        break;
+        case "stats":
+            interaction.reply({ content: "**Your Stats**\n*Loading...*", fetchReply: true, ephemeral: true }).then(async m => {
+                let msg = await getStats(interaction.member.id);
+                interaction.editReply({ content: msg, fetchReply: true, ephemeral: true });
             });
         break;
         case "give":
@@ -498,6 +515,45 @@ client.on('interactionCreate', async interaction => {
                         interaction.editReply({ content: "Set inventory limit.", fetchReply: true, ephemeral: true });
                         log(`<@${interaction.member.id}> set <@${id}>'s inventory limit to ${skill}.`);
                     });
+                });
+            } else {
+                interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
+            }
+        break;
+        case "run_rules":
+            if(isGameMaster(interaction.member)) {
+                interaction.reply({ content: "Running rules...", fetchReply: true, ephemeral: true }).then(async m => {
+                     quicksql("UPDATE players SET hunger=hunger+1");
+                     quicksql("UPDATE players SET thirst=thirst+1");
+                     quicksql("UPDATE players SET sleep=sleep+1");
+                     quicksql("UPDATE players SET hunger_status=0 WHERE hunger<=hunger_treshold");
+                     quicksql("UPDATE players SET hunger_status=1 WHERE hunger>hunger_treshold AND hunger<=(hunger_treshold+2)");
+                     quicksql("UPDATE players SET hunger_status=2 WHERE hunger>(hunger_treshold+2) AND hunger<=(hunger_treshold+4)");
+                     quicksql("UPDATE players SET hunger_status=3 WHERE hunger>(hunger_treshold+4)");
+                     quicksql("UPDATE players SET thirst_status=0 WHERE thirst<=thirst_treshold");
+                     quicksql("UPDATE players SET thirst_status=1 WHERE thirst>thirst_treshold AND thirst<=(thirst_treshold+2)");
+                     quicksql("UPDATE players SET thirst_status=2 WHERE thirst>(thirst_treshold+2) AND thirst<=(thirst_treshold+4)");
+                     quicksql("UPDATE players SET thirst_status=3 WHERE thirst>(thirst_treshold+4)");
+                     quicksql("UPDATE players SET sleep_status=0 WHERE sleep<=sleep_treshold");
+                     quicksql("UPDATE players SET sleep_status=1 WHERE sleep>sleep_treshold AND sleep<=(sleep_treshold+2)");
+                     quicksql("UPDATE players SET sleep_status=2 WHERE sleep>(sleep_treshold+2) AND sleep<=(sleep_treshold+4)");
+                     quicksql("UPDATE players SET sleep_status=3 WHERE sleep>(sleep_treshold+4)");
+                     quicksql("UPDATE players SET hp=hp-2 WHERE hunger_status=3");
+                     quicksql("UPDATE players SET hp=hp-1 WHERE thirst_status=1");
+                     quicksql("UPDATE players SET hp=hp-5 WHERE thirst_status=2");
+                     quicksql("UPDATE players SET hp=0 WHERE thirst_status=3");
+                     
+                     await sleep(10000);
+                     
+                     quicksqlquery("SELECT id,channel_id FROM players", result => {
+                         result.forEach(async el => {
+                             if(el.channel_id) {
+                                 let msg = await getStats(el.id);
+                                 let ch = await mainguild.channels.fetch(el.channel_id);
+                                 ch.send(msg);
+                             }
+                         });
+                     });
                 });
             } else {
                 interaction.reply({ content: "Error. GM only command.", fetchReply: true, ephemeral: true })
@@ -697,6 +753,34 @@ function chunk(strings, combiner, maxLength) {
     }
 
     return result;
+}
+
+async function getStats(id) {
+    return new Promise(resolve => {
+        quicksqlquery("SELECT * FROM players WHERE id=" + connection.escape(id), result => {
+            let status = [];
+            if((+result[0].hunger_status) > 0) status.push("Hunger Level " + result[0].hunger_status);
+            if((+result[0].thirst_status) > 0) status.push("Dehydrated Level " + result[0].thirst_status);
+            if((+result[0].sleep_status) > 0) status.push("Tired Level " + result[0].sleep_status);
+            if(result[0].custom_status && result[0].custom_status.length > 0) status.push(result[0].custom_status);
+            let msg = `**Your Stats**\n\`\`\`Health           |    ${result[0].hp}
+
+Current location |    ${locationCache[result[0].location] ?? "unknown"}
+    
+Hunger Threshold |    ${result[0].hunger_treshold}
+Hunger           |    ${result[0].hunger}
+    
+Thirst Threshold |    ${result[0].thirst_treshold}
+Thirst           |    ${result[0].thirst}
+    
+Sleep Threshold  |    ${result[0].sleep_treshold}
+Sleep            |    ${result[0].sleep}
+    
+Status           |    ${status.length ? status.join(`
+                 |    `) : "none"}\`\`\``;
+                 resolve(msg);
+            });
+    });
 }
 
 
@@ -1052,6 +1136,14 @@ function registerCommands() {
                 required: true
             }
         ]
+    });
+    client.application?.commands.create({
+        name: 'run_rules',
+        description: 'Runs stat related rules.'
+    });
+    client.application?.commands.create({
+        name: 'stats',
+        description: 'See your stats.'
     });
     client.application?.commands.create({
         name: 'connection_add',
