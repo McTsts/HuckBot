@@ -316,13 +316,10 @@ client.on('interactionCreate', async interaction => {
         case "list_recipes":
             interaction.reply({ content: "**Recipes**", fetchReply: true, ephemeral: true }).then(m => {
                 quicksqlquery("SELECT * FROM recipes ORDER BY r_id ASC", result => {
-                    let res = result.map(el => `\`${el.r_id}\`: ${el.output.split(",").map(el2 => materialCache[+el2]).join(", ")} <= ${el.input.split(",").map(el => materialCache[+el]).join(", ")}`);
-                    let resavgl = res.map(el => el.length).reduce((a,b) => a+b) / res.length;
-                    res2 = res.splice(Math.floor(1750 / resavgl));
-                    res3 = res2.splice(Math.floor(1750 / resavgl));
-                    interaction.editReply({ content: "**Recipes**\n" + res.join("\n"), fetchReply: true, ephemeral: true });
-                    if(res2.length) interaction.followUp({ content: res2.join("\n"), fetchReply: true, ephemeral: true });
-                    if(res3.length) interaction.followUp({ content: res3.join("\n"), fetchReply: true, ephemeral: true });
+                    let res = result.map(el => `\`${el.r_id}\`: ${formatItemList(el.output)} <= ${formatItemList(el.input)}`);
+                    let chunked = chunk(res, "\n", 1900);
+                    interaction.editReply({ content: "**Recipes**\n" + chunked[0], fetchReply: true, ephemeral: true });
+                    for(let i = 1; i < chunked.length; i++) interaction.followUp({ content: chunked[i], fetchReply: true, ephemeral: true });
                 });
             });
         break;
@@ -668,6 +665,40 @@ function applyEmojis(text) {
 		}); 
 		return text;
 	}
+    
+function formatItemList(list) {
+    const counts = {};
+  
+    // count each item id
+    list.split(",").forEach(id => counts[+id] = (counts[+id] || 0) + 1); 
+
+    // format list
+    return Object.entries(counts).map(([id, count]) => count > 1 ? `${materialCache[+id]} x${count}` : materialCache[+id]).join(", ");
+}
+
+function chunk(strings, combiner, maxLength) {
+    var result = [];
+    let current = "";
+
+    for(const str of strings) {
+        // first string
+        if (current.length === 0) current = str;
+        // second string and short enough
+        else if ((current.length + combiner.length + str.length) <= maxLength) current += combiner + str;
+        // too long
+        else {
+            result.push(current);
+            current = str;
+        }
+    }
+
+    if(current.length > 0) {
+        result.push(current);
+    }
+
+    return result;
+}
+
 
 /* Register Slash Commands */
 function registerCommands() {
