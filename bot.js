@@ -359,14 +359,23 @@ client.on('interactionCreate', async interaction => {
                                 let inv = result2[0].inventory;
                                 let invNew = ("," + inv + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
                                 if(inv != invNew) {
+                                    if(invNew == "0") invNew = "";
                                     quicksql("UPDATE players SET inventory=" + connection.escape(invNew) + " WHERE id=" + connection.escape(interaction.member.id));
                                     switch(+result[0].effect) {
-                                        case 1:
+                                        case 1: // hunger reset
                                             quicksql("UPDATE players SET hunger=0 WHERE id=" + connection.escape(interaction.member.id));
                                             interaction.editReply({ content: "Restored hunger.", fetchReply: true, ephemeral: true });
                                         break;
-                                        case 2:
-                                            quicksql("UPDATE players SET thirst=0 WHERE id=" + connection.escape(interaction.member.id));
+                                        case 2: // thirst-1
+                                            quicksql("UPDATE players SET thirst=thirst-1 WHERE id=" + connection.escape(interaction.member.id));
+                                            interaction.editReply({ content: "Restored thirst.", fetchReply: true, ephemeral: true });
+                                        break;
+                                        case 3: // hp+1
+                                            quicksql("UPDATE players SET hp=hp+1 WHERE id=" + connection.escape(interaction.member.id));
+                                            interaction.editReply({ content: "Restored thirst.", fetchReply: true, ephemeral: true });
+                                        break;
+                                        case 4: // hunger reset, thirst-1
+                                            quicksql("UPDATE players SET hunger=0,thirst=thirst-1 WHERE id=" + connection.escape(interaction.member.id));
                                             interaction.editReply({ content: "Restored thirst.", fetchReply: true, ephemeral: true });
                                         break;
                                     }
@@ -472,6 +481,7 @@ client.on('interactionCreate', async interaction => {
                         for(let i = 0; i < count; i++) {
                             inv = ("," + inv + ",").replace("," + m_id + ",",",").split(",").filter(el => el).join(",");
                         }
+                        if(newinv == "0") newinv = "";
                         quicksqlquery("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(id), result2 => {
                             interaction.editReply({ content: "Removed! New Inventory: " + inv.split(",").map(el => materialCache[+el]) + "", fetchReply: true, ephemeral: true });
                         });
@@ -593,6 +603,7 @@ client.on('interactionCreate', async interaction => {
                                 for(let j = 0; j < removeMaterials.length; j++) {
                                     inv = ("," + inv + ",").replace(new RegExp("," + removeMaterials[j] + ",", "g"),",").split(",").filter(el => el).join(",");
                                 }
+                                if(inv == "0") inv = "";
                                 quicksql("UPDATE players SET inventory=" + connection.escape(inv) + " WHERE id=" + connection.escape(result[i].id));
                             }
                     });
