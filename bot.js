@@ -709,12 +709,14 @@ client.on('interactionCreate', async interaction => {
         break;
         case "scavenge":
             interaction.reply({ content: "Scavenging...", fetchReply: true, ephemeral: true }).then(m => {
-                let a_id = interaction.options.get('a_id')?.value ?? null;
+                //let a_id = interaction.options.get('a_id')?.value ?? null;
                 quicksqlquery("SELECT * FROM players WHERE id=" + connection.escape(interaction.member.id), result => {
                     if(+result[0].scavenged >= +result[0].skill3) {
                         interaction.editReply({ content: "You cannot scavenge again in this phase.", fetchReply: true, ephemeral: true });
                         return;
                     }
+                    
+                    let a_id = result[0].location;
                     
                     let skill = result[0].skill;
                     let inv = result[0].inventory;
@@ -1049,7 +1051,7 @@ function registerCommands() {
     });
     client.application?.commands.create({
         name: 'scavenge',
-        description: 'Scavenge an area.',
+        description: 'Scavenge an area.'/**,
         options: [
             {
                 type: ApplicationCommandOptionType.String,
@@ -1057,7 +1059,7 @@ function registerCommands() {
                 description: "The id of the area.",
                 required: true
             }
-        ]
+        ]**/
     });
     client.application?.commands.create({
         name: 'list_recipes',
