@@ -1,6 +1,8 @@
 {
 	"token": "TOKEN",
     "guild": "GUILD ID",
+    "log_channel": "ID",
+    "log_channel2": "ID",
 	"db": {
 		"host": "localhost",
 		"user": "USER",
