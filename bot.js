@@ -375,15 +375,15 @@ client.on('interactionCreate', async interaction => {
                                         break;
                                         case 2: // thirst-1
                                             quicksql("UPDATE players SET thirst=thirst-1 WHERE id=" + connection.escape(interaction.member.id));
-                                            interaction.editReply({ content: "Restored thirst.", fetchReply: true, ephemeral: true });
+                                            interaction.editReply({ content: "Reduced thirst.", fetchReply: true, ephemeral: true });
                                         break;
                                         case 3: // hp+1
                                             quicksql("UPDATE players SET hp=hp+1 WHERE id=" + connection.escape(interaction.member.id));
-                                            interaction.editReply({ content: "Restored thirst.", fetchReply: true, ephemeral: true });
+                                            interaction.editReply({ content: "Increased health by 1.", fetchReply: true, ephemeral: true });
                                         break;
                                         case 4: // hunger reset, thirst-1
                                             quicksql("UPDATE players SET hunger=0,thirst=thirst-1 WHERE id=" + connection.escape(interaction.member.id));
-                                            interaction.editReply({ content: "Restored thirst.", fetchReply: true, ephemeral: true });
+                                            interaction.editReply({ content: "Restored hunger. Reduced thirst.", fetchReply: true, ephemeral: true });
                                         break;
                                     }
                                 } else {
