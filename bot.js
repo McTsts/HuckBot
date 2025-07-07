@@ -236,7 +236,7 @@ client.on('interactionCreate', async interaction => {
                         for (const num of inv) {
                           counts[num] = counts[num] ? counts[num] + 1 : 1;
                         }
-                        interaction.editReply({ content: "**Inventory**\n" + `${Object.keys(counts).map(key => "• \`" + +key + "\`: " + materialCache[+key] + " x" + counts[key]).join("\n")}`, fetchReply: true, ephemeral: true })
+                        interaction.editReply({ content: "**Inventory (" + Object.keys(counts).map(key => counts[key]).reduce((a,b) => a+b, 0)  + ")**\n" + `${Object.keys(counts).map(key => "• \`" + +key + "\`: " + materialCache[+key] + " x" + counts[key]).join("\n")}`, fetchReply: true, ephemeral: true })
                     });
                 });
             } else {
